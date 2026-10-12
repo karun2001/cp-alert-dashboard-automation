@@ -1,58 +1,69 @@
 import {shouldEscalate} from './shouldEscalate';
 import {totalNumberOfAlerts, getOcppAndVendorError} from './utility';
 import {expect} from '@playwright/test';
+import {checkPrevEscalation} from './checkPrevEscalated';
 
 export async function alertOps(page, issueTable) {
-    
-    // const NumOfAlerts = await totalNumberOfAlerts(page, issueTable);
-    // if (NumOfAlerts <= 0) {
-    //     console.log('No alerts found in the table — exiting');
-    // }
-    // console.log(`Found ${NumOfAlerts} alerts in the table — processing...`);
+  const pagination = page.locator('#current .pagination li a');
+  let testRun = false;
+  const paginationCount = testRun ? 1 : await pagination.count() - 2;
+  const processedIds = new Set<string>(); // tracks all processed issueIds across pages
 
-
-    // Continous loop to process all alerts in the table
-
-    const rows = await issueTable.locator('tbody tr');
-    const pagination = await page.locator('#current .pagination li a');
-
-    while( await rows.count() > 0 && await pagination.count() > 2) {
-        for (let i = 1; i <= await pagination.count(); i++) {
-        if(i>1){    
-            await pagination.nth(i).click();
-            await page.waitForTimeout(2000);
-        }
-        for (let j = 0; j < await rows.count(); j++) {
-            /* 
-                Check if the alert should be escalated  
-                    1. Click on the alert to open Issue Details
-                    2. Get the Hardware, OCPP Error and Vendor Error from the Error Information 
-                    3. Call shouldEscalate function to determine if the alert should be escalated
-            */   
-           const row = rows.nth(j); 
-           await row.click();
-        
-           const {ocppError, vendorError} = await getOcppAndVendorError(row); 
-
-        //    const issueDetails = page.locator('#issue_details');
-        //    await expect (issueDetails).toBeVisible({timeout: 5000});
-           
-           const errorInformation = page.locator('.error-information a');
-           await expect (errorInformation).toBeVisible({timeout: 5000});
-           await errorInformation.click();
-
-           const hardware = await page.locator('#issue-details .col-xs-6')
-            .filter({ hasText: 'Manufacturer' })
-            .evaluate((el) => {
-                const br = [...el.querySelectorAll('b')]
-                    .find(b => b.textContent === 'Manufacturer')
-                    ?.nextElementSibling; // this is the <br>
-                    return br?.nextSibling?.textContent?.trim() ?? '(Leer)';
-            });
-
-           const escalte = shouldEscalate(hardware, ocppError, vendorError);
-           console.log(`Alert Hardware: ${hardware}, OCPP Error: ${ocppError}, Vendor Error: ${vendorError}, Should Escalate: ${escalte}`); 
-        }    
+  for (let i = 1; i <= paginationCount; i++) {
+    if (i > 1) {
+      await pagination.nth(i).click();
+      await page.waitForTimeout(2000);
     }
+
+    const rows = issueTable.locator('tbody tr');
+    const testCondition = testRun ? 1 : await rows.count();
+    let j = 0;
+
+    while (j < testCondition) {
+      const row = rows.nth(j);
+      const result = await checkPrevEscalation(page, row);
+
+      if (!result) {
+        j++;
+        continue;
+      }
+
+      const { html, issueId, cpid, previouslyEscalated, errors, affectedCpConnectorId } = result;
+
+      // Skip already processed alerts
+      if (processedIds.has(issueId)) {
+        j++;
+        continue;
+      }
+
+      const ocppMatch         = html.match(/<b>Error information<\/b>:<br\s*\/>([^<]+)/);
+      const vendorMatch       = html.match(/<b>Additional vendor information<\/b>:<br\s*\/>([^<]+)/);
+      const manufacturerMatch = html.match(/<b>Manufacturer<\/b>:<br\s*\/>([^<]+)/);
+
+      const ocppError   = ocppMatch?.[1]?.trim()        ?? '(Leer)';
+      const vendorError = vendorMatch?.[1]?.trim()      ?? '(Leer)';
+      const hardware    = manufacturerMatch?.[1]?.trim() ?? '(Leer)';
+
+      const escalate = shouldEscalate(hardware, ocppError, vendorError);
+
+      console.log(
+        `Alert Hardware: ${hardware}, OCPP Error: ${ocppError}, Vendor Error: ${vendorError}, ` +
+        `Should Escalate: ${escalate}, Previously Escalated: ${previouslyEscalated}, ` +
+        `Suggested Action: ${escalate && !previouslyEscalated ? 'Escalate' : 'Acknowledge'}, ` +
+        `Affected Connector: ${affectedCpConnectorId}`
+      );
+
+      processedIds.add(issueId);
+
+      if (!escalate || previouslyEscalated) {
+        console.log('Acknowledging alert..., Station name:', await row.locator('td').nth(1).textContent());
+        await page.locator('a').filter({ hasText: 'Acknowledged' }).click();
+        await page.waitForTimeout(2000);
+        // Row removed from table — stay at same j, row count effectively decreased
+      } else {
+        // Row stays in table — move to next
+        j++;
+      }
     }
+  }
 }

@@ -1,12 +1,9 @@
-
-
-
-
 import { chromium } from 'playwright';
 import { expect } from '@playwright/test';
 import path from 'path';
 import { Offline } from '../util/Offline';
 import { alertOps } from '../util/alert.ops';
+import { checkPrevEscalation } from '../util/checkPrevEscalated';
 
 
 const authFile = path.join(__dirname, '../playwright/.auth/user.json');
@@ -59,12 +56,9 @@ async function setupAuth() {
   console.log('[DEMO] No actual actions will be performed');
   console.log('[DEMO] Actions will be console logged only\n');
 
-  // run offline demo
-  //await Offline(page, issueTable);
-  //  Call the alertOps functions to process the alerts
 
+  //Offline(page, issueTable);
   alertOps(page, issueTable);
-  
 }
 
 setupAuth().catch(console.error);
