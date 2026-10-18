@@ -15,21 +15,26 @@
 //3. Get previous errors list of that error
 //4. Check if previously escalted
 
+import { isRepeatedlySolved } from './isRepeatedlySolved';
 
 export async function checkPrevEscalation(page, row) {
   // 1. Click row and get issueId
   await row.click();
   const issueId = (await row.locator('td span').first().textContent())?.trim();
+  if (!issueId) {
+    console.error('Could not read issueId from row');
+    return null;
+  }
   console.log('issueId', issueId);
 
-  // 2. Fetch issue details to extract cpid and connectors
+  // 2. Fetch issue details to extract cpid
   let detailResponse;
   try {
     detailResponse = await page.request.get(
       `https://community.beenergised.cloud/infrastructure/cp/operation/details/${issueId}`
     );
   } catch (error) {
-    console.error(`Network error fetching details for issue ${issueId}:`, error.message);
+    console.error(`Network error fetching details for issue ${issueId}:`, (error as Error).message);
     return null;
   }
 
@@ -44,7 +49,6 @@ export async function checkPrevEscalation(page, row) {
     return null;
   }
 
-  // Extract cpid from the HTML
   const cpidMatch = html.match(/restart_cp\((\d+)\)/)
                  ?? html.match(/reset_cp\((\d+)\)/)
                  ?? html.match(/cpid=(\d+)/);
@@ -52,11 +56,10 @@ export async function checkPrevEscalation(page, row) {
     console.error(`Could not extract cpid from details page for issue ${issueId}`);
     return null;
   }
-
   const cpid = cpidMatch[1];
   console.log(`✓ cpid extracted: ${cpid}`);
 
-  // 3. Fetch previous error history
+  // 3. Fetch previous error history (yesterday → today)
   const today = new Date();
   const previousDay = new Date(today);
   previousDay.setDate(today.getDate() - 1);
@@ -70,14 +73,15 @@ export async function checkPrevEscalation(page, row) {
     iColumns: '10',
     sColumns: ',,,,,,,,,',
     iDisplayStart: '0',
-    iDisplayLength: '50',
+    iDisplayLength: '200',                 // was 50 — avoid truncation
     mDataProp_0: 'Id',            mDataProp_1: 'CpConnectorLabel',
     mDataProp_2: 'ErrorCode',     mDataProp_3: 'VendorCode',
     mDataProp_4: 'OccuredAtDate', mDataProp_5: 'SolvedAtDate',
     mDataProp_6: 'RequireOnSite', mDataProp_7: 'EscalatedToThirdParty',
     mDataProp_8: 'ActionType',    mDataProp_9: 'IsInMaintenanceWindow',
     sSearch: '', bRegex: 'false',
-    iSortCol_0: '0', sSortDir_0: 'asc', iSortingCols: '1',
+    iSortCol_0: '0', sSortDir_0: 'desc',   // newest first
+    iSortingCols: '1',
     range_start: fmt(previousDay),
     range_end: fmt(today),
     range_field: 'Occured',
@@ -89,7 +93,7 @@ export async function checkPrevEscalation(page, row) {
       `https://community.beenergised.cloud/infrastructure/rest/cp_error_notifications?${params}`
     );
   } catch (error) {
-    console.error(`Network error fetching history for cpid ${cpid}:`, error.message);
+    console.error(`Network error fetching history for cpid ${cpid}:`, (error as Error).message);
     return null;
   }
 
@@ -102,31 +106,49 @@ export async function checkPrevEscalation(page, row) {
   const errors: any[] = data.aaData ?? [];
   console.log(`✓ ${errors.length} previous errors found for cpid ${cpid}`);
 
-  // Get affected connector ID directly from current issue's record
-  const currentError = errors.find(e => e.Id === issueId);
-  const affectedCpConnectorId = currentError?.CpConnectorId ?? null;
-  console.log(`✓ Affected CpConnectorId: ${affectedCpConnectorId}`);
+  // Find the current issue's own record
+  const currentError = errors.find(e => String(e.Id) === issueId);
+  if (!currentError) {
+    console.error(`Current issue ${issueId} not found in history for cpid ${cpid}`);
+    return null; // unknown — don't guess station-level
+  }
 
-  // 4. Check if previously escalated for the same connector
+  const affectedCpConnectorId = currentError.CpConnectorId ?? null;
+  console.log(`✓ Affected CpConnectorId: ${affectedCpConnectorId} \n Current Error: `, currentError);
+
+  // 4. Check if the same fault was previously escalated on the same scope
+  const normalize = (v?: string | number | null) => String(v ?? '').trim().toUpperCase();
+
   const previouslyEscalated = errors.some(e => {
-  if (e.ActionType !== 'Escalated To Third Party') return false;
+    if (String(e.Id) === issueId) return false;                 // skip itself
+    if (e.ActionType !== 'Escalated To Third Party') return false;
 
-  // Station-level error (e.g. Offline) — no connector to match
-  if (!affectedCpConnectorId) {
-    console.log(`✓ Station-level error previously escalated:`, e);
-    return true;
-  }
+    // Same OCPP ErrorCode
+    if (normalize(e.ErrorCode) !== normalize(currentError.ErrorCode)) return false;
 
-  // Match by CpConnectorId
-  if (e.CpConnectorId === affectedCpConnectorId) {
-    console.log(`✓ Connector-level error previously escalated:`, e);
-    return true;
-  }
+    // Same VendorCode (only if the current issue has one)
+    if (
+      currentError.VendorCode &&
+      normalize(e.VendorCode) !== normalize(currentError.VendorCode)
+    ) {
+      return false;
+    }
 
-  return false;
+    // Same scope
+    if (!affectedCpConnectorId) {
+      const match = !e.CpConnectorId;
+      if (match) console.log(`✓ Station-level error previously escalated:`, e);
+      return match;
+    }
+
+    const match = e.CpConnectorId === affectedCpConnectorId;
+    if (match) console.log(`✓ Connector-level error previously escalated:`, e);
+    return match;
   });
-  
+
   console.log(`Previously escalated: ${previouslyEscalated}`);
 
-  return { html, issueId, cpid, previouslyEscalated, errors, affectedCpConnectorId };
+  const repeatedlySolved = isRepeatedlySolved(errors, currentError, affectedCpConnectorId, 3);
+
+  return { html, issueId, cpid, previouslyEscalated, errors, affectedCpConnectorId, repeatedlySolved };
 }

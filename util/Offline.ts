@@ -5,39 +5,39 @@ import path from 'path';
 //import { checkPrevEscalation } from '../util/checkPrevEscalated';
 const authFile = path.join(__dirname, '../playwright/.auth/user.json');
 
-async function setupAuth() {
+// async function setupAuth() {
   
-  const context = await chromium.launchPersistentContext(           //This creates a new browser profile dediicated for the automation test.
-    'C:\\Users\\KarunSharma\\playwright-automation-profile',
-    {
-      headless: false,
-      channel: 'chrome',
-    }
-  );
-  const page = await context.newPage();
-  await page.goto('https://community.beenergised.cloud/infrastructure/cp/operation/dashboard');
-  await page.waitForURL('https://community.beenergised.cloud/**');
-  await context.storageState({ path: authFile });
-  await expect(page.getByRole('link', { name: 'Infrastructure' })).toBeVisible();
-  await page.getByRole('link', { name: 'Infrastructure' }).hover();
-  await expect(page.getByRole('link', { name: 'CP Operation Dashboard' })).toBeVisible();
-  await page.getByRole('link', { name: 'CP Operation Dashboard' }).click();
+//   const context = await chromium.launchPersistentContext(           //This creates a new browser profile dediicated for the automation test.
+//     'C:\\Users\\KarunSharma\\playwright-automation-profile',
+//     {
+//       headless: false,
+//       channel: 'chrome',
+//     }
+//   );
+//   const page = await context.newPage();
+//   await page.goto('https://community.beenergised.cloud/infrastructure/cp/operation/dashboard');
+//   await page.waitForURL('https://community.beenergised.cloud/**');
+//   await context.storageState({ path: authFile });
+//   await expect(page.getByRole('link', { name: 'Infrastructure' })).toBeVisible();
+//   await page.getByRole('link', { name: 'Infrastructure' }).hover();
+//   await expect(page.getByRole('link', { name: 'CP Operation Dashboard' })).toBeVisible();
+//   await page.getByRole('link', { name: 'CP Operation Dashboard' }).click();
 
-  // capture the table, go to 1st row position, click on it and print the row data.
-  await expect(page.locator('#open_issue_table')).toBeVisible();
-  const issueTable = page.locator('#open_issue_table');
-//   checkPrevEscalation(page, issueTable);
+//   // capture the table, go to 1st row position, click on it and print the row data.
+//   await expect(page.locator('#open_issue_table')).toBeVisible();
+//   const issueTable = page.locator('#open_issue_table');
+// //   checkPrevEscalation(page, issueTable);
 
-    Offline(page, issueTable);
-}
-setupAuth().catch(console.error);
-
-
+//     Offline(page, issueTable);
+// }
+// setupAuth().catch(console.error);
 
 
-export async function Offline(page, table){
-    for (; ;){
-    await table.locator('tbody tr :has-text("Offline")').first().click();
+
+
+export async function Offline(page, row){
+    //await table.locator('tbody tr :has-text("Offline")').first().click();
+    await row.click();
     await page.waitForTimeout(2000);
     await page.getByText('Immediate reset (Hard)').click();
     await page.getByRole('button', { name: 'Immediate reset (Hard)' }).click();
@@ -47,7 +47,6 @@ export async function Offline(page, table){
     await page.getByRole('button', { name: 'Escalate to third party' }).click();
     console.log('Waiting for 5 seconds before next iteration...');  
     await page.waitForTimeout(5000);
-    }
 }
 
 
