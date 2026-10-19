@@ -45,8 +45,8 @@ export async function Offline(page, row){
     await page.locator('a').filter({ hasText: 'Escalate to third party' }).click();
     await page.waitForTimeout(2000);
     await page.getByRole('button', { name: 'Escalate to third party' }).click();
-    console.log('Waiting for 5 seconds before next iteration...');  
-    await page.waitForTimeout(5000);
+    console.log('Waiting for 2 seconds before next iteration...');  
+    await page.waitForTimeout(2000);
 }
 
 

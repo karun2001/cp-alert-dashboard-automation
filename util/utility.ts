@@ -1,3 +1,11 @@
+export async function restartStation(page, row){
+  await row.click();
+  await page.waitForTimeout(2000);
+  await page.getByText('Immediate reset (Hard)').click();
+  await page.getByRole('button', { name: 'Immediate reset (Hard)' }).click();
+  await page.waitForTimeout(2000);
+}
+
 export async function totalNumberOfAlerts(page, issueTable) {
     
     const rows = await issueTable.locator('tbody tr');
