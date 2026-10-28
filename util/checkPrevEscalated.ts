@@ -25,7 +25,7 @@ export async function checkPrevEscalation(page, row) {
     console.error('Could not read issueId from row');
     return null;
   }
-  console.log('issueId', issueId);
+  //console.log('issueId', issueId);
 
   // 2. Fetch issue details to extract cpid
   let detailResponse;
@@ -57,7 +57,7 @@ export async function checkPrevEscalation(page, row) {
     return null;
   }
   const cpid = cpidMatch[1];
-  console.log(`✓ cpid extracted: ${cpid}`);
+  //console.log(`✓ cpid extracted: ${cpid}`);
 
   // 3. Fetch previous error history (yesterday → today)
   const today = new Date();
@@ -104,7 +104,7 @@ export async function checkPrevEscalation(page, row) {
 
   const data = await historyResponse.json();
   const errors: any[] = data.aaData ?? [];
-  console.log(`✓ ${errors.length} previous errors found for cpid ${cpid}`);
+  //console.log(`✓ ${errors.length} previous errors found for cpid ${cpid}`);
 
   // Find the current issue's own record
   const currentError = errors.find(e => String(e.Id) === issueId);
@@ -114,7 +114,7 @@ export async function checkPrevEscalation(page, row) {
   }
 
   const affectedCpConnectorId = currentError.CpConnectorId ?? null;
-  console.log(`✓ Affected CpConnectorId: ${affectedCpConnectorId} \n Current Error: `, currentError);
+  //console.log(`✓ Affected CpConnectorId: ${affectedCpConnectorId} \n Current Error: `, currentError);
 
   // 4. Check if the same fault was previously escalated on the same scope
   const normalize = (v?: string | number | null) => String(v ?? '').trim().toUpperCase();
@@ -137,16 +137,16 @@ export async function checkPrevEscalation(page, row) {
     // Same scope
     if (!affectedCpConnectorId) {
       const match = !e.CpConnectorId;
-      if (match) console.log(`✓ Station-level error previously escalated:`, e);
+      if (match) //console.log(`✓ Station-level error previously escalated:`, e);
       return match;
     }
 
     const match = e.CpConnectorId === affectedCpConnectorId;
-    if (match) console.log(`✓ Connector-level error previously escalated:`, e);
+    if (match) //console.log(`✓ Connector-level error previously escalated:`, e);
     return match;
   });
 
-  console.log(`Previously escalated: ${previouslyEscalated}`);
+  //console.log(`Previously escalated: ${previouslyEscalated}`);
 
   const repeatedlySolved = isRepeatedlySolved(errors, currentError, affectedCpConnectorId, 3);
 

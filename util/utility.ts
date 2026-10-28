@@ -6,6 +6,15 @@ export async function restartStation(page, row){
   await page.waitForTimeout(2000);
 }
 
+export async  function resetStation(page, row){
+  await row.click();
+  await page.waitForTimeout(2000);
+  await page.getByText('On Idle reset (Soft)').click();
+  await page.getByRole('button', { name: 'On Idle reset (Soft)' }).click();
+  await page.waitForTimeout(2000);
+}
+
+
 export async function totalNumberOfAlerts(page, issueTable) {
     
     const rows = await issueTable.locator('tbody tr');

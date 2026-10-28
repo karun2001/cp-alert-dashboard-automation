@@ -16,8 +16,15 @@
 export function shouldEscalate(
   hardware: string,
   ocppError: string,
-  vendorError: string
+  vendorError: string,
+  ctx?: { stationName?: string; isAC?: boolean }
 ): boolean {
+  // Special case: French (LFR) AC stations with an Offline alert
+  if (ctx?.stationName?.startsWith('LFR') && ctx.isAC) {
+    const hw = hardware.toLowerCase();
+    const isDbtOrSchneider = hw.includes('dbt') || hw.includes('schneider');
+    return ocppError === 'Offline' && isDbtOrSchneider;
+  }
   switch (hardware.trim().toLowerCase()) {
     case "abb":
       return checkABB(ocppError, vendorError);

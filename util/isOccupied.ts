@@ -59,8 +59,8 @@ export async function isOccupied(
   // 3. The station counts as occupied if ANY connector is occupied
   const occupied = Object.values(statuses).some(c => c.status === 'Occupied');
 
-  console.log('Connector statuses:', statuses);
-  console.log(`Occupied: ${occupied}`);
+  //console.log('Connector statuses:', statuses);
+  //console.log(`Occupied: ${occupied}`);
 
   return { statuses, occupied };
 }

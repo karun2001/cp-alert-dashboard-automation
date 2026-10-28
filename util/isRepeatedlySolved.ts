@@ -26,6 +26,6 @@ export function isRepeatedlySolved(
     return String(e.CpConnectorId) === String(affectedCpConnectorId);
   });
 
-  console.log(`✓ Same error solved ${solvedErrors.length} time(s) on connector ${affectedCpConnectorId ?? '(station)'}`);
+  //console.log(`✓ Same error solved ${solvedErrors.length} time(s) on connector ${affectedCpConnectorId ?? '(station)'}`);
   return solvedErrors.length > threshold;
 }
