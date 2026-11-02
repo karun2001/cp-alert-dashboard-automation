@@ -5,9 +5,9 @@ import { setPerformedActions } from './setPerdormedAction';
 import { isOccupied } from './isOccupied';
 import { isAC } from './isAC';
 import { checkSpecialCase } from './specialCases';
-// import { Offline } from './Offline';
+import { Offline } from './Offline';
 
-const CYCLE_INTERVAL_MS = 1 * 60 * 1000; // time between passes (1 minute)
+const CYCLE_INTERVAL_MS = 1 * 60 * 5000; // time between passes (5) minute)
 const WAIT_BETWEEN_ALERTS_MS = 1000;     // time between alerts (1 second)
 const MAX_SOLVED_PER_DAY = 3;            // acknowledge if solved more than this today
 
@@ -70,21 +70,7 @@ async function acknowledge(page, row, stationName: string, reason: string) {
   await page.waitForTimeout(2000);
 }
 
-// Count how many times the same error was solved today on the same connector
-function countSolvedToday(errors: any[], issueId: string, affectedCpConnectorId): number {
-  const current = errors.find(e => e.Id === issueId);
-  if (!current) return 0;
 
-  const d = new Date();
-  const today = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(-2)}`;
-
-  return errors.filter(e =>
-    e.Id !== issueId &&
-    e.ErrorCode === current.ErrorCode &&
-    (!affectedCpConnectorId || e.CpConnectorId === affectedCpConnectorId) &&
-    e.SolvedAtDate?.startsWith(today)          // e.g. '27.10.26 21:55:59'
-  ).length;
-}
 
 export async function alertOps(page, issueTable) {
   const testRun = false; // true = handle only one alert per pass
@@ -150,14 +136,13 @@ export async function alertOps(page, issueTable) {
         const ac          = isAC(status?.statuses, stationName);
         const special  = checkSpecialCase(stationName, hardware, ocppError, ac);
         const escalate    = shouldEscalate(hardware, ocppError, vendorError);
-        const solvedToday = countSolvedToday(errors ?? [], issueIdOnRow, affectedCpConnectorId);
         const lastStep    = previousSteps.get(stationName) ?? 'none';
 
         console.log(
         `\n\n IsssueId: ${issueIdOnRow}, Station: ${stationName}, Hardware: ${hardware}, OCPP Error: ${ocppError}, Vendor Error: ${vendorError}, ` +
         `Should Escalate: ${escalate}, Previously Escalated: ${previouslyEscalated}, ` +
         `Affected Connector: ${affectedCpConnectorId}, Repeatedly Solved: ${repeatedlySolved}, ` +
-        `Solved today: ${solvedToday}, Occupied: ${occupied}, AC: ${ac}, ` +
+        `Occupied: ${occupied}, AC: ${ac}, ` +
         `Special: ${special ?? 'none'}, Last step: ${lastStep}`                     // ← Special added
       );
 
@@ -190,9 +175,9 @@ export async function alertOps(page, issueTable) {
         } else if (occupied) {
           await setPerformedActions(page, issueTable, row, 'Ongoing charging process so did not restart or reset further.');
         }
-        /* else if (ocppError === 'Offline') {
+        else if (ocppError === 'Offline') {
           await Offline(page, row);
-        } */
+        }
         else {
           await resetRestartThen(row, stationName, () =>
             setPerformedActions(page, issueTable, row, 'Reset and restart performed, but the error still occurs.').then(() => {})
